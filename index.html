@@ -1,0 +1,1137 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>课程达成度计算器</title>
+  <script src="jszip.min.js"></script>
+  <script src="course-models.js"></script>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --panel: #fff;
+      --ink: #1f2937;
+      --muted: #65758b;
+      --line: #dbe3ee;
+      --brand: #2d5f8f;
+      --brand-dark: #28547f;
+      --wine: #7a2e43;
+      --wine-dark: #5f2334;
+      --metric-blue: #2d5f8f;
+      --metric-blue-dark: #28547f;
+      --green: #177245;
+      --amber: #9a5a00;
+      --red: #b42318;
+      --blue-soft: #e9f2fb;
+      --green-soft: #eaf6ef;
+      --amber-soft: #fff6e5;
+      --shadow: 0 10px 30px rgba(28, 54, 84, .08);
+      --shadow-soft: 0 4px 14px rgba(28, 54, 84, .06);
+      font-family: Optima, SimSun, "Songti SC", serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(44, 95, 147, .08), transparent 30%),
+        linear-gradient(180deg, #f8fbff 0%, var(--bg) 44%, #f6f8fb 100%);
+      font-size: 16px;
+    }
+    header {
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, .96) 0%, rgba(239, 247, 255, .92) 100%);
+      border-bottom: 1px solid var(--line);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, .75) inset;
+    }
+    .wrap { width: min(1260px, calc(100% - 32px)); margin: 0 auto; }
+    .topbar { min-height: 118px; display: flex; justify-content: flex-end; align-items: center; gap: 20px; position: relative; }
+    .top-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+    .brand-block {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      display: grid;
+      gap: 8px;
+      text-align: center;
+      width: min(520px, calc(100% - 220px));
+    }
+    .maker {
+      margin: 0;
+      font-size: 32px;
+      line-height: 1.2;
+      font-weight: 780;
+      letter-spacing: 0;
+      color: #183f64;
+    }
+    .maker::after {
+      content: "";
+      display: block;
+      width: 72px;
+      height: 2px;
+      margin: 12px auto 0;
+      background: linear-gradient(90deg, transparent, #7fa9cf, transparent);
+    }
+    .school {
+      margin: 0;
+      color: #42607c;
+      font-size: 18px;
+      font-weight: 620;
+      letter-spacing: 0;
+    }
+    main { padding: 24px 0 40px; }
+    .panel, .table-shell {
+      background: rgba(255, 255, 255, .94);
+      border: 1px solid rgba(215, 225, 238, .9);
+      border-radius: 8px;
+      box-shadow: var(--shadow-soft);
+      backdrop-filter: blur(8px);
+    }
+
+    .toolbar {
+      min-height: 128px;
+      padding: 24px 28px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      background: linear-gradient(180deg, var(--metric-blue) 0%, var(--metric-blue-dark) 100%);
+      border-color: rgba(45, 95, 143, .72);
+    }
+
+    .toolbar-left, .toolbar-right {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .toolbar-right {
+      width: auto;
+      height: auto;
+      border-radius: 0;
+      background: transparent;
+      border: 0;
+    }
+
+    .export-copy {
+      color: #fff;
+      display: grid;
+      gap: 6px;
+    }
+
+    .export-copy strong {
+      font-size: 24px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .export-copy span {
+      color: rgba(255, 255, 255, .78);
+      font-size: 15px;
+    }
+
+    button, .file-label, input {
+      height: 38px;
+      border: 1px solid #cfd9e6;
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      font-size: 15px;
+      transition: border-color .16s ease, background .16s ease, color .16s ease, transform .16s ease;
+    }
+
+    button, .file-label {
+      padding: 0 13px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    button:hover, .file-label:hover {
+      border-color: #9ab0c8;
+    }
+    button:active { transform: translateY(1px); }
+    button.primary {
+      height: 44px;
+      min-width: 132px;
+      border-radius: 999px;
+      background: #fff;
+      color: var(--metric-blue-dark);
+      border-color: rgba(255, 255, 255, .9);
+      padding: 0 22px;
+      display: inline-flex;
+      gap: 4px;
+      line-height: 1;
+      text-align: center;
+      font-weight: 700;
+    }
+    button.primary:hover {
+      background: #eef4fb;
+      color: var(--metric-blue-dark);
+      border-color: #eef4fb;
+    }
+    button.add-action,
+    .target-actions button,
+    button[data-action="addComponent"] {
+      background: #fff;
+      border-color: rgba(45, 95, 143, .42);
+      color: var(--brand);
+    }
+    button.add-action:hover,
+    .target-actions button:hover,
+    button[data-action="addComponent"]:hover {
+      background: #f3f8ff;
+      color: var(--brand-dark);
+      border-color: rgba(45, 95, 143, .62);
+    }
+    button.text-danger,
+    button[data-delete-row],
+    button[data-action="deleteComponent"],
+    button[data-action="deleteTarget"] {
+      color: var(--wine);
+      border-color: rgba(122, 46, 67, .34);
+      background: #fff;
+    }
+    button.text-danger:hover,
+    button[data-delete-row]:hover,
+    button[data-action="deleteComponent"]:hover,
+    button[data-action="deleteTarget"]:hover {
+      background: #fff6f8;
+      color: var(--wine-dark);
+      border-color: rgba(122, 38, 58, .62);
+    }
+    input[type="file"] { display: none; }
+
+    .formula { margin-top: 16px; padding: 18px 20px; }
+    .formula h2, .table-title h2 { margin: 0; font-size: 16px; letter-spacing: 0; }
+    .formula p { margin: 10px 0 0; color: var(--muted); font-size: 15px; line-height: 1.75; }
+
+    .summary {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: 1.2fr repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .metric {
+      min-height: 92px;
+      padding: 14px;
+      background: rgba(255, 255, 255, .94);
+      border: 1px solid rgba(215, 225, 238, .9);
+      border-radius: 8px;
+    }
+
+    .metric strong { display: block; font-size: 28px; line-height: 1.15; color: var(--ink); }
+    .metric span { display: block; margin-top: 8px; color: var(--muted); font-size: 14px; }
+    .metric.main, .metric.ok, .metric.warn, .metric {
+      background: rgba(238, 244, 251, .72);
+      border-color: rgba(184, 203, 224, .46);
+    }
+    .metric:nth-child(2) {
+      background: rgba(226, 237, 240, .68);
+      border-color: rgba(142, 171, 179, .42);
+    }
+    .metric:nth-child(3) {
+      background: rgba(226, 240, 233, .68);
+      border-color: rgba(147, 180, 162, .42);
+    }
+    .metric:nth-child(4) {
+      background: rgba(234, 231, 244, .68);
+      border-color: rgba(166, 158, 192, .42);
+    }
+    .metric:nth-child(5) {
+      background: rgba(244, 231, 234, .68);
+      border-color: rgba(190, 151, 160, .42);
+    }
+
+    .target-actions { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+    .target-actions button { box-shadow: none; }
+    .target-grid { margin-top: 12px; display: grid; grid-template-columns: repeat(3, minmax(280px, 1fr)); gap: 14px; }
+    .target-card {
+      background: rgba(255, 255, 255, .96);
+      border: 1px solid rgba(215, 225, 238, .95);
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: var(--shadow-soft);
+    }
+    .target-head { display: grid; grid-template-columns: 1fr 82px 68px; gap: 8px; align-items: start; }
+    .target-head input { width: 100%; padding: 0 9px; font-weight: 700; }
+    .target-head .pill { height: 38px; }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 62px;
+      border-radius: 999px;
+      background: #edf6ff;
+      color: var(--brand-dark);
+      font-weight: 700;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .subhead {
+      margin: 12px 0 8px;
+      display: grid;
+      grid-template-columns: 1fr 74px 74px 58px;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      padding: 0 2px;
+    }
+
+    .component-list { display: grid; gap: 8px; }
+    .component {
+      display: grid;
+      grid-template-columns: 1fr 74px 74px 58px;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .component input { width: 100%; padding: 0 8px; background: #fbfdff; }
+    .target-foot { margin-top: 10px; display: flex; gap: 8px; justify-content: space-between; align-items: center; }
+    .small { font-size: 13px; color: var(--muted); }
+    .danger { color: var(--red); }
+
+    .notice {
+      margin-top: 16px;
+      padding: 12px 16px;
+      color: var(--amber);
+      background: var(--amber-soft);
+      border: 1px solid #efd08f;
+      border-radius: 8px;
+      font-size: 15px;
+      display: none;
+    }
+
+    .notice.show { display: block; }
+    .table-shell { margin-top: 16px; overflow: hidden; }
+    .table-title { padding: 16px 18px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; align-items: center; background: linear-gradient(180deg, #fff 0%, #fbfdff 100%); }
+    .table-tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
+    .table-tools input { width: 86px; padding: 0 9px; }
+    .hint { color: var(--muted); font-size: 14px; }
+    .table-scroll { max-height: 560px; overflow: auto; background: #fff; }
+    table { width: 100%; min-width: 980px; border-collapse: collapse; font-size: 15px; }
+    th, td { padding: 9px 10px; border-bottom: 1px solid #edf0f5; text-align: left; vertical-align: middle; }
+    th { position: sticky; top: 0; background: #eef4fb; z-index: 1; color: #344054; font-weight: 700; }
+    tbody tr:nth-child(even) td { background: #fbfdff; }
+    tbody tr:hover td { background: #f1f7ff; }
+    td input { width: 100%; min-width: 76px; height: 32px; padding: 0 8px; border-color: transparent; background: transparent; }
+    td input:focus, .target-card input:focus { outline: none; border-color: #9aa8bd; background: #fff; }
+    tr.missing td, tbody tr.missing:nth-child(even) td { background: #fff8e8; }
+    tbody tr.missing:hover td { background: #fff3d6; }
+
+    @media (max-width: 980px) {
+      .wrap { width: min(100% - 20px, 1260px); }
+      .topbar { justify-content: center; align-items: center; flex-direction: column; padding: 18px 0; }
+      .brand-block { position: static; transform: none; width: 100%; }
+      .summary { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+      .target-grid { grid-template-columns: 1fr; }
+      .toolbar-left, .toolbar-right { width: 100%; }
+      .toolbar { align-items: flex-start; }
+      .toolbar-right { justify-content: flex-start; }
+      button, .file-label { flex: 1 1 auto; }
+      button.primary { flex: 0 0 auto; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap topbar">
+      <div class="brand-block">
+        <h1 class="maker">刘韦君</h1>
+        <p class="school">海南师范大学心理学院</p>
+      </div>
+      <div class="top-actions">
+        <button id="blankBtn">新建空白表</button>
+        <button id="resetBtn">恢复案例数据</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="panel toolbar">
+      <div class="export-copy">
+        <strong>生成课程达成度表</strong>
+        <span>导出为接近案例格式的 Excel 文件。</span>
+      </div>
+      <div class="toolbar-right">
+        <button id="exportXlsxBtn" class="primary">导出 Excel</button>
+      </div>
+    </section>
+
+    <section class="panel formula">
+      <h2>计算公式</h2>
+      <p id="formulaText"></p>
+    </section>
+
+    <section class="summary" aria-label="达成度摘要">
+      <div class="metric main"><strong id="totalAchievement">-</strong><span>课程总达成度</span></div>
+      <div class="metric ok"><strong id="targetMetric">0</strong><span>课程目标数</span></div>
+      <div class="metric"><strong id="componentMetric">0</strong><span>子维度数</span></div>
+      <div class="metric"><strong id="studentMetric">0</strong><span>学生人数</span></div>
+      <div class="metric warn"><strong id="missingMetric">0</strong><span>缺失/异常值</span></div>
+    </section>
+
+    <section class="target-actions">
+      <span class="small">课程目标配置 · 目标权重用于课程总达成度，子维度系数用于目标内部达成度。</span>
+      <button id="addTargetBtnInline">新增课程目标</button>
+    </section>
+    <section id="targetGrid" class="target-grid" aria-label="课程目标"></section>
+    <section id="notice" class="notice"></section>
+
+    <section class="table-shell">
+      <div class="table-title">
+        <h2>学生成绩</h2>
+        <div class="table-tools">
+          <span class="hint">可从 Excel 复制多行多列后，点选单元格直接粘贴。</span>
+          <input id="studentAddCount" type="number" min="1" max="300" step="1" value="1" aria-label="新增学生人数">
+          <button id="addRowsBtn" class="add-action">新增学生</button>
+          <button id="deleteSelectedRowsBtn" class="text-danger">删除选中学生</button>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead id="thead"></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const sourceModel = (window.COURSE_MODELS || []).find(item => item.sheetName === "平时+期末考试（方法1）") || (window.COURSE_MODELS || [])[0];
+    let model = null;
+    let students = [];
+    let nextId = 1;
+    let selectedRows = new Set();
+
+    const els = {
+      formulaText: document.getElementById("formulaText"),
+      totalAchievement: document.getElementById("totalAchievement"),
+      targetMetric: document.getElementById("targetMetric"),
+      componentMetric: document.getElementById("componentMetric"),
+      studentMetric: document.getElementById("studentMetric"),
+      missingMetric: document.getElementById("missingMetric"),
+      targetGrid: document.getElementById("targetGrid"),
+      notice: document.getElementById("notice"),
+      thead: document.getElementById("thead"),
+      tbody: document.getElementById("tbody")
+    };
+
+    function clone(value) {
+      return JSON.parse(JSON.stringify(value));
+    }
+
+    function makeId(prefix) {
+      nextId += 1;
+      return `${prefix}${nextId}`;
+    }
+
+    function numberOrNull(value) {
+      if (value === null || value === undefined || String(value).trim() === "") return null;
+      const n = Number(value);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function fmt(value, digits = 4) {
+      return typeof value === "number" && Number.isFinite(value) ? value.toFixed(digits) : "-";
+    }
+
+    function fixed3(value) {
+      const n = numberOrNull(value);
+      return n === null ? "" : n.toFixed(3);
+    }
+
+    function convertSourceModel(raw) {
+      const converted = {
+        sheetName: "平时+期末考试",
+        expectedTotalAchievement: raw.expectedTotalAchievement,
+        targets: [],
+        students: raw.students.map(student => ({ id: student.id, name: student.name, scores: {} }))
+      };
+
+      raw.targets.forEach((target, targetIndex) => {
+        const newTarget = {
+          id: makeId("t"),
+          name: target.name,
+          weight: target.weight,
+          components: []
+        };
+        target.components.forEach(component => {
+          const totalMax = component.inputCols.reduce((sum, col) => sum + (numberOrNull(raw.inputLabels[col]) || 0), 0);
+          const sourceTotalMax = component.maxScore || totalMax || 1;
+          component.inputCols.forEach(col => {
+            const maxScore = inferMaxScore(raw, col, component, sourceTotalMax);
+            const coefficient = component.coefficient * maxScore / sourceTotalMax;
+            const componentId = makeId("c");
+            newTarget.components.push({
+              id: componentId,
+              name: raw.inputLabels[col] || component.name,
+              maxScore,
+              coefficient,
+              studentIndexes: component.studentIndexes || []
+            });
+            converted.students.forEach((student, studentIndex) => {
+              student.scores[componentId] = raw.students[studentIndex].scores[col] ?? "";
+            });
+          });
+        });
+        converted.targets.push(newTarget);
+      });
+      return converted;
+    }
+
+    function inferMaxScore(raw, col, component, sourceTotalMax) {
+      const values = raw.students.map(student => numberOrNull(student.scores[col])).filter(value => value !== null);
+      const maxObserved = values.length ? Math.max(...values) : 0;
+      if (component.inputCols.length === 1) return component.maxScore;
+      const known = { E: 20, F: 12, I: 24, J: 24, M: 20 };
+      if (known[col]) return known[col];
+      return Math.max(maxObserved, sourceTotalMax / component.inputCols.length);
+    }
+
+    function resetCurrent() {
+      nextId = 1;
+      selectedRows = new Set();
+      model = convertSourceModel(clone(sourceModel));
+      students = clone(model.students);
+      render();
+    }
+
+    function createBlankTable() {
+      nextId = 1;
+      selectedRows = new Set();
+      const componentId = makeId("c");
+      model = {
+        sheetName: "平时+期末考试",
+        expectedTotalAchievement: null,
+        targets: [{
+          id: makeId("t"),
+          name: "课程目标1",
+          weight: 1,
+          components: [{ id: componentId, name: "子维度1", maxScore: 100, coefficient: 1 }]
+        }],
+        students: []
+      };
+      students = [];
+      addStudents(5);
+    }
+
+    function getComponents() {
+      return model.targets.flatMap(target => target.components.map(component => ({ target, component })));
+    }
+
+    function averageFor(component) {
+      const values = students.map(student => numberOrNull(student.scores[component.id])).filter(value => value !== null);
+      if (!values.length) return null;
+      return values.reduce((sum, value) => sum + value, 0) / values.length;
+    }
+
+    function calculate() {
+      const missing = [];
+      const componentRefs = getComponents();
+      students.forEach((student, index) => {
+        if (!student.id) missing.push(`第 ${index + 1} 行缺少学号`);
+        if (!student.name) missing.push(`第 ${index + 1} 行缺少姓名`);
+        componentRefs.forEach(({ component }) => {
+          if (numberOrNull(student.scores[component.id]) === null) missing.push(`第 ${index + 1} 行 ${component.name} 缺失或不是数字`);
+        });
+      });
+
+      let total = 0;
+      const targetResults = model.targets.map(target => {
+        let achievement = 0;
+        const components = target.components.map(component => {
+          const average = averageFor(component);
+          const part = average === null || !component.maxScore ? null : average / component.maxScore * component.coefficient;
+          if (part !== null) achievement += part;
+          return { ...component, average, part };
+        });
+        total += achievement * target.weight;
+        return { ...target, achievement, components };
+      });
+      return { total, targetResults, missing };
+    }
+
+    function renderFormula(results) {
+      const lines = results.targetResults.map(target => {
+        const componentText = target.components.length
+          ? target.components.map(component => `${component.name}均分 / ${component.maxScore} × ${component.coefficient}`).join(" + ")
+          : "0";
+        return `${target.name}达成度 = ${componentText}`;
+      });
+      const totalText = results.targetResults.length
+        ? results.targetResults.map(target => `${target.name}达成度 × ${target.weight}`).join(" + ")
+        : "0";
+      els.formulaText.innerHTML = `${lines.map(escapeHtml).join("<br>")}<br>${escapeHtml(`课程总达成度 = ${totalText}`)}`;
+    }
+
+    function renderTargets(results) {
+      els.targetGrid.innerHTML = results.targetResults.map((target, targetIndex) => {
+        const coefficientSum = target.components.reduce((sum, component) => sum + (numberOrNull(component.coefficient) || 0), 0);
+        return `
+          <article class="target-card">
+            <div class="target-head">
+              <input data-target="${targetIndex}" data-field="name" value="${escapeAttr(target.name)}" aria-label="课程目标名称">
+              <input inputmode="decimal" data-target="${targetIndex}" data-field="weight" value="${fixed3(target.weight)}" aria-label="课程目标权重">
+              <span class="pill">${fmt(target.achievement)}</span>
+            </div>
+            <div class="subhead">
+              <span>子维度名称</span><span>满分</span><span>系数</span><span></span>
+            </div>
+            <div class="component-list">
+              ${target.components.map((component, componentIndex) => `
+                <div class="component">
+                  <input data-target="${targetIndex}" data-component="${componentIndex}" data-field="name" value="${escapeAttr(component.name)}" aria-label="子维度名称">
+                  <input inputmode="decimal" data-target="${targetIndex}" data-component="${componentIndex}" data-field="maxScore" value="${fixed3(component.maxScore)}" aria-label="子维度满分">
+                  <input inputmode="decimal" data-target="${targetIndex}" data-component="${componentIndex}" data-field="coefficient" value="${fixed3(component.coefficient)}" aria-label="子维度系数">
+                  <button data-action="deleteComponent" data-target="${targetIndex}" data-component="${componentIndex}" class="text-danger">删除</button>
+                </div>
+              `).join("")}
+            </div>
+            <div class="target-foot">
+              <span class="small">系数合计 ${fmt(coefficientSum, 3)}</span>
+              <span>
+                <button data-action="addComponent" data-target="${targetIndex}">新增子维度</button>
+                <button data-action="deleteTarget" data-target="${targetIndex}" class="text-danger">删除目标</button>
+              </span>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderTable(missing) {
+      const components = getComponents();
+      const allSelected = students.length > 0 && students.every((_, index) => selectedRows.has(index));
+      els.thead.innerHTML = `<tr><th style="width:48px"><input type="checkbox" data-select-all ${allSelected ? "checked" : ""} aria-label="全选学生"></th><th style="width:70px">序号</th><th>学号</th><th>姓名</th>${components.map(({ component }) => `<th>${escapeHtml(component.name)}</th>`).join("")}<th style="width:86px">操作</th></tr>`;
+      els.tbody.innerHTML = students.map((student, rowIndex) => {
+        const rowMissing = !student.id || !student.name || components.some(({ component }) => numberOrNull(student.scores[component.id]) === null);
+        return `<tr class="${rowMissing ? "missing" : ""}">
+          <td><input type="checkbox" data-select-row="${rowIndex}" ${selectedRows.has(rowIndex) ? "checked" : ""} aria-label="选择第 ${rowIndex + 1} 名学生"></td>
+          <td>${rowIndex + 1}</td>
+          <td><input data-row="${rowIndex}" data-col-index="0" data-field="id" value="${escapeAttr(student.id)}"></td>
+          <td><input data-row="${rowIndex}" data-col-index="1" data-field="name" value="${escapeAttr(student.name)}"></td>
+          ${components.map(({ component }, componentIndex) => `<td><input inputmode="decimal" data-row="${rowIndex}" data-col-index="${componentIndex + 2}" data-component-id="${component.id}" value="${escapeAttr(student.scores[component.id] ?? "")}"></td>`).join("")}
+          <td><button data-delete-row="${rowIndex}">删除</button></td>
+        </tr>`;
+      }).join("");
+
+      const targetWeightSum = model.targets.reduce((sum, target) => sum + (numberOrNull(target.weight) || 0), 0);
+      const coefficientWarnings = model.targets
+        .map(target => ({ name: target.name, sum: target.components.reduce((sum, component) => sum + (numberOrNull(component.coefficient) || 0), 0) }))
+        .filter(item => Math.abs(item.sum - 1) > 0.000001);
+      const warnings = [];
+      if (Math.abs(targetWeightSum - 1) > 0.000001) warnings.push(`课程目标权重合计为 ${fmt(targetWeightSum, 3)}，通常建议为 1。`);
+      coefficientWarnings.forEach(item => warnings.push(`${item.name} 的子维度系数合计为 ${fmt(item.sum, 3)}。`));
+      if (missing.length) warnings.push(`发现 ${missing.length} 个缺失或异常值：${missing.slice(0, 6).join("；")}${missing.length > 6 ? "……" : ""}`);
+
+      if (warnings.length) {
+        els.notice.className = "notice show";
+        els.notice.innerHTML = warnings.map(escapeHtml).join("<br>");
+      } else {
+        els.notice.className = "notice";
+        els.notice.textContent = "";
+      }
+    }
+
+    function render() {
+      const results = calculate();
+      els.totalAchievement.textContent = fmt(results.total, 6);
+      els.targetMetric.textContent = model.targets.length;
+      els.componentMetric.textContent = getComponents().length;
+      els.studentMetric.textContent = students.length;
+      els.missingMetric.textContent = results.missing.length;
+      document.getElementById("deleteSelectedRowsBtn").textContent = selectedRows.size
+        ? `删除选中学生（${selectedRows.size}）`
+        : "删除选中学生";
+      renderFormula(results);
+      renderTargets(results);
+      renderTable(results.missing);
+    }
+
+    function addTarget() {
+      const targetId = makeId("t");
+      const componentId = makeId("c");
+      model.targets.push({
+        id: targetId,
+        name: `课程目标${model.targets.length + 1}`,
+        weight: 0,
+        components: [{ id: componentId, name: "新子维度", maxScore: 100, coefficient: 1 }]
+      });
+      students.forEach(student => student.scores[componentId] = "");
+      render();
+    }
+
+    function addStudents(count = 1) {
+      const safeCount = Math.max(1, Math.min(300, Math.floor(Number(count) || 1)));
+      for (let i = 0; i < safeCount; i++) {
+        const scores = {};
+        getComponents().forEach(({ component }) => scores[component.id] = "");
+        students.push({ id: "", name: "", scores });
+      }
+      render();
+    }
+
+    function confirmCreateBlankTable() {
+      const confirmed = confirm("新建空白表会清空当前页面数据，确定继续吗？");
+      if (!confirmed) return;
+      createBlankTable();
+    }
+
+    function deleteSelectedStudents() {
+      if (!selectedRows.size) {
+        alert("请先勾选要删除的学生。");
+        return;
+      }
+      const count = selectedRows.size;
+      const confirmed = confirm(`确定删除选中的 ${count} 名学生吗？`);
+      if (!confirmed) return;
+      students = students.filter((_, index) => !selectedRows.has(index));
+      selectedRows = new Set();
+      render();
+    }
+
+    function addComponent(targetIndex) {
+      const componentId = makeId("c");
+      model.targets[targetIndex].components.push({ id: componentId, name: "新子维度", maxScore: 100, coefficient: 0 });
+      students.forEach(student => student.scores[componentId] = "");
+      render();
+    }
+
+    function deleteComponent(targetIndex, componentIndex) {
+      const component = model.targets[targetIndex].components[componentIndex];
+      model.targets[targetIndex].components.splice(componentIndex, 1);
+      students.forEach(student => delete student.scores[component.id]);
+      render();
+    }
+
+    function deleteTarget(targetIndex) {
+      const target = model.targets[targetIndex];
+      target.components.forEach(component => students.forEach(student => delete student.scores[component.id]));
+      model.targets.splice(targetIndex, 1);
+      render();
+    }
+
+    function buildExportRows() {
+      const results = calculate();
+      const components = getComponents();
+      const rows = [
+        ["模板", "平时+期末考试"],
+        ["课程总达成度", results.total],
+        [],
+        ["课程目标", "目标权重", "分目标达成度", "子维度", "满分", "系数", "均分", "贡献"]
+      ];
+      results.targetResults.forEach(target => {
+        target.components.forEach((component, index) => {
+          rows.push([index === 0 ? target.name : "", index === 0 ? target.weight : "", index === 0 ? target.achievement : "", component.name, component.maxScore, component.coefficient, component.average ?? "", component.part ?? ""]);
+        });
+      });
+      rows.push([], ["学号", "姓名", ...components.map(({ component }) => component.name)]);
+      students.forEach(student => {
+        rows.push([student.id, student.name, ...components.map(({ component }) => {
+          const value = numberOrNull(student.scores[component.id]);
+          return value === null ? "" : value;
+        })]);
+      });
+      return rows;
+    }
+
+    function parseCsv(text) {
+      const rows = [];
+      let row = [], cell = "", quoted = false;
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i], next = text[i + 1];
+        if (ch === '"' && quoted && next === '"') { cell += '"'; i++; }
+        else if (ch === '"') quoted = !quoted;
+        else if (ch === "," && !quoted) { row.push(cell); cell = ""; }
+        else if ((ch === "\n" || ch === "\r") && !quoted) {
+          if (ch === "\r" && next === "\n") i++;
+          row.push(cell);
+          if (row.some(v => String(v).trim() !== "")) rows.push(row);
+          row = []; cell = "";
+        } else cell += ch;
+      }
+      row.push(cell);
+      if (row.some(v => String(v).trim() !== "")) rows.push(row);
+      return rows;
+    }
+
+    function parseClipboardTable(text) {
+      const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      if (normalized.includes("\t")) {
+        return normalized
+          .split("\n")
+          .filter((line, index, all) => line !== "" || index < all.length - 1)
+          .map(line => line.split("\t"));
+      }
+      if (normalized.includes(",") || normalized.includes("\n")) return parseCsv(normalized);
+      return [[normalized]];
+    }
+
+    function studentColumnDefs() {
+      return [
+        { kind: "field", key: "id" },
+        { kind: "field", key: "name" },
+        ...getComponents().map(({ component }) => ({ kind: "score", key: component.id }))
+      ];
+    }
+
+    function blankStudent() {
+      const scores = {};
+      getComponents().forEach(({ component }) => scores[component.id] = "");
+      return { id: "", name: "", scores };
+    }
+
+    function pasteStudentTable(startRow, startCol, table) {
+      const columns = studentColumnDefs();
+      const neededRows = startRow + table.length - students.length;
+      for (let i = 0; i < neededRows; i++) students.push(blankStudent());
+      table.forEach((row, rowOffset) => {
+        const student = students[startRow + rowOffset];
+        row.forEach((value, colOffset) => {
+          const column = columns[startCol + colOffset];
+          if (!column) return;
+          if (column.kind === "field") student[column.key] = String(value ?? "").trim();
+          if (column.kind === "score") student.scores[column.key] = String(value ?? "").trim();
+        });
+      });
+      render();
+    }
+
+    async function parseXlsx(file) {
+      const zip = await JSZip.loadAsync(await file.arrayBuffer());
+      const workbook = await xmlFile(zip, "xl/workbook.xml");
+      const rels = await xmlFile(zip, "xl/_rels/workbook.xml.rels");
+      const firstSheet = workbook.querySelector("sheet");
+      const rel = Array.from(rels.querySelectorAll("Relationship")).find(r => r.getAttribute("Id") === firstSheet.getAttribute("r:id"));
+      const sheetPath = "xl/" + rel.getAttribute("Target").replace(/^\/?xl\//, "");
+      const sharedStrings = await readSharedStrings(zip);
+      const sheet = await xmlFile(zip, sheetPath);
+      const rows = [];
+      sheet.querySelectorAll("sheetData row").forEach(rowNode => {
+        const row = [];
+        rowNode.querySelectorAll("c").forEach(cellNode => {
+          const ref = cellNode.getAttribute("r") || "";
+          row[columnIndex(ref.replace(/[0-9]/g, ""))] = readCell(cellNode, sharedStrings);
+        });
+        if (row.some(v => String(v ?? "").trim() !== "")) rows.push(row.map(v => v ?? ""));
+      });
+      return rows;
+    }
+
+    function importRows(rawRows) {
+      const components = getComponents();
+      const headerIndex = rawRows.findIndex(row => row.includes("学号") && row.includes("姓名"));
+      if (headerIndex < 0) {
+        alert("未找到包含“学号”和“姓名”的表头。请使用本页面导出的 CSV/Excel 格式导入。");
+        return;
+      }
+      const headers = rawRows[headerIndex].map(v => String(v).trim());
+      const idIndex = headers.indexOf("学号");
+      const nameIndex = headers.indexOf("姓名");
+      students = rawRows.slice(headerIndex + 1).filter(row => row.some(v => String(v ?? "").trim() !== "")).map(row => {
+        const scores = {};
+        components.forEach(({ component }) => {
+          const colIndex = headers.indexOf(component.name);
+          scores[component.id] = colIndex >= 0 ? row[colIndex] ?? "" : "";
+        });
+        return { id: String(row[idIndex] ?? ""), name: String(row[nameIndex] ?? ""), scores };
+      });
+      render();
+    }
+
+    async function xmlFile(zip, path) {
+      const file = zip.file(path);
+      if (!file) throw new Error(`Excel 文件缺少 ${path}`);
+      return new DOMParser().parseFromString(await file.async("text"), "application/xml");
+    }
+
+    async function readSharedStrings(zip) {
+      const file = zip.file("xl/sharedStrings.xml");
+      if (!file) return [];
+      const xml = new DOMParser().parseFromString(await file.async("text"), "application/xml");
+      return Array.from(xml.querySelectorAll("si")).map(si => Array.from(si.querySelectorAll("t")).map(t => t.textContent).join(""));
+    }
+
+    function readCell(cellNode, sharedStrings) {
+      const type = cellNode.getAttribute("t");
+      if (type === "s") return sharedStrings[Number(cellNode.querySelector("v")?.textContent || 0)] || "";
+      if (type === "inlineStr") return cellNode.querySelector("is t")?.textContent || "";
+      return cellNode.querySelector("v")?.textContent || "";
+    }
+
+    function columnIndex(letters) {
+      let n = 0;
+      for (const ch of letters) n = n * 26 + ch.charCodeAt(0) - 64;
+      return Math.max(0, n - 1);
+    }
+
+    function columnLetters(index) {
+      let n = index + 1, out = "";
+      while (n > 0) {
+        const r = (n - 1) % 26;
+        out = String.fromCharCode(65 + r) + out;
+        n = Math.floor((n - 1) / 26);
+      }
+      return out;
+    }
+
+    function buildFormattedWorkbook() {
+      const components = getComponents();
+      const layoutComponentCount = model.targets.reduce((sum, target) => sum + Math.max(1, target.components.length), 0);
+      const totalCols = Math.max(4, 3 + layoutComponentCount);
+      const lastCol = columnLetters(totalCols - 1);
+      const studentStartRow = 8;
+      const avgRow = studentStartRow + students.length;
+      const achievementRow = avgRow + 1;
+      const totalRow = avgRow + 2;
+      const rows = [];
+      const merges = [`A1:${lastCol}2`, "A3:A7", "B3:B7", "C3:C7", `B${avgRow}:C${avgRow}`, `B${achievementRow}:C${achievementRow}`, `B${totalRow}:C${totalRow}`, `D${totalRow}:${lastCol}${totalRow}`];
+
+      const setCell = (r, c, cell) => {
+        rows[r - 1] ||= [];
+        rows[r - 1][c - 1] = typeof cell === "object" && cell !== null && ("v" in cell || "f" in cell) ? cell : { v: cell };
+      };
+
+      setCell(1, 1, { v: "课程达成度计算表（平时+期末考试）", s: 1 });
+      setCell(3, 1, { v: "序号", s: 2 });
+      setCell(3, 2, { v: "学号", s: 2 });
+      setCell(3, 3, { v: "学生姓名", s: 2 });
+
+      let col = 4;
+      model.targets.forEach(target => {
+        const span = Math.max(1, target.components.length);
+        const start = col;
+        const end = col + span - 1;
+        if (start < end) {
+          merges.push(`${columnLetters(start - 1)}3:${columnLetters(end - 1)}3`);
+          merges.push(`${columnLetters(start - 1)}4:${columnLetters(end - 1)}4`);
+        }
+        setCell(3, start, { v: target.name, s: 2 });
+        setCell(4, start, { v: target.weight, s: 4 });
+        target.components.forEach(component => {
+          setCell(5, col, { v: component.name, s: 2 });
+          setCell(6, col, { v: component.maxScore, s: 4 });
+          setCell(7, col, { v: component.coefficient, s: 4 });
+          col += 1;
+        });
+        if (!target.components.length) col += 1;
+      });
+
+      setCell(5, 1, { v: "", s: 2 });
+      setCell(5, 2, { v: "达成课程目标的各考核项目", s: 2 });
+      setCell(6, 2, { v: "分数", s: 2 });
+      setCell(7, 2, { v: "支撑多目标的系数", s: 2 });
+
+      students.forEach((student, index) => {
+        const row = studentStartRow + index;
+        setCell(row, 1, { v: index + 1, s: 3 });
+        setCell(row, 2, { v: student.id, s: 3 });
+        setCell(row, 3, { v: student.name, s: 3 });
+        components.forEach(({ component }, componentIndex) => {
+          const value = numberOrNull(student.scores[component.id]);
+          setCell(row, 4 + componentIndex, { v: value === null ? "" : value, s: 3 });
+        });
+      });
+
+      setCell(avgRow, 2, { v: "平均分", s: 2 });
+      components.forEach((_, index) => {
+        const letter = columnLetters(3 + index);
+        const formula = students.length ? `AVERAGE(${letter}${studentStartRow}:${letter}${avgRow - 1})` : `""`;
+        setCell(avgRow, 4 + index, { f: formula, s: 4 });
+      });
+
+      setCell(achievementRow, 2, { v: "课程分目标达成度", s: 2 });
+      let componentOffset = 0;
+      const totalTerms = [];
+      model.targets.forEach(target => {
+        const span = Math.max(1, target.components.length);
+        const startCol = 4 + componentOffset;
+        const endCol = startCol + span - 1;
+        if (startCol < endCol) merges.push(`${columnLetters(startCol - 1)}${achievementRow}:${columnLetters(endCol - 1)}${achievementRow}`);
+        const terms = target.components.map((_, localIndex) => {
+          const letter = columnLetters(startCol + localIndex - 1);
+          return `${letter}${avgRow}/${letter}6*${letter}7`;
+        });
+        setCell(achievementRow, startCol, { f: terms.length ? terms.join("+") : "0", s: 4 });
+        totalTerms.push(`${columnLetters(startCol - 1)}${achievementRow}*${columnLetters(startCol - 1)}4`);
+        componentOffset += span;
+      });
+
+      setCell(totalRow, 2, { v: "课程达成度", s: 2 });
+      setCell(totalRow, 4, { f: totalTerms.length ? totalTerms.join("+") : "0", s: 5 });
+
+      return { rows, merges, totalCols };
+    }
+
+    async function exportXlsx(filename) {
+      const workbook = buildFormattedWorkbook();
+      const zip = new JSZip();
+      zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`);
+      zip.folder("_rels").file(".rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`);
+      zip.folder("xl").file("workbook.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="课程达成度" sheetId="1" r:id="rId1"/></sheets><calcPr calcMode="auto"/></workbook>`);
+      zip.folder("xl").folder("_rels").file("workbook.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`);
+      zip.folder("xl").file("styles.xml", buildStylesXml());
+      const rowsXml = workbook.rows.map((row, r) => `<row r="${r + 1}"${r === 0 ? ' ht="44" customHeight="1"' : ""}>${(row || []).map((cell, c) => {
+        if (!cell) return "";
+        const ref = `${columnLetters(c)}${r + 1}`;
+        const style = cell.s ? ` s="${cell.s}"` : "";
+        if (cell.f) return `<c r="${ref}"${style}><f>${escapeXml(cell.f)}</f></c>`;
+        if (typeof cell.v === "number" && Number.isFinite(cell.v)) return `<c r="${ref}"${style}><v>${cell.v}</v></c>`;
+        return `<c r="${ref}" t="inlineStr"${style}><is><t>${escapeXml(String(cell.v ?? ""))}</t></is></c>`;
+      }).join("")}</row>`).join("");
+      const colsXml = `<cols><col min="1" max="1" width="8" customWidth="1"/><col min="2" max="2" width="18" customWidth="1"/><col min="3" max="3" width="14" customWidth="1"/><col min="4" max="${workbook.totalCols}" width="13" customWidth="1"/></cols>`;
+      const mergesXml = workbook.merges.length ? `<mergeCells count="${workbook.merges.length}">${workbook.merges.map(ref => `<mergeCell ref="${ref}"/>`).join("")}</mergeCells>` : "";
+      zip.folder("xl").folder("worksheets").file("sheet1.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="7" topLeftCell="A8" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>${colsXml}<sheetData>${rowsXml}</sheetData>${mergesXml}<pageMargins left="0.3" right="0.3" top="0.5" bottom="0.5" header="0.3" footer="0.3"/></worksheet>`);
+      downloadBlob(await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), filename);
+    }
+
+    function buildStylesXml() {
+      return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<numFmts count="1"><numFmt numFmtId="164" formatCode="0.0000"/></numFmts>
+<fonts count="3"><font><sz val="11"/><name val="Microsoft YaHei"/></font><font><b/><sz val="16"/><name val="Microsoft YaHei"/></font><font><b/><sz val="11"/><name val="Microsoft YaHei"/></font></fonts>
+<fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFD9EAF7"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFEAF3FF"/><bgColor indexed="64"/></patternFill></fill></fills>
+<borders count="2"><border/><border><left style="thin"><color rgb="FF9AA8BD"/></left><right style="thin"><color rgb="FF9AA8BD"/></right><top style="thin"><color rgb="FF9AA8BD"/></top><bottom style="thin"><color rgb="FF9AA8BD"/></bottom></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="6">
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
+<xf numFmtId="0" fontId="1" fillId="0" borderId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="2" fillId="2" borderId="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="164" fontId="0" fillId="0" borderId="1" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="164" fontId="2" fillId="3" borderId="1" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+</cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`;
+    }
+
+    function exportCsv(filename, data) {
+      const csv = "\ufeff" + data.map(row => row.map(value => {
+        const text = String(value ?? "");
+        return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+      }).join(",")).join("\n");
+      downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), filename);
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value).replace(/"/g, "&quot;");
+    }
+
+    function escapeXml(value) {
+      return escapeHtml(value).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+    }
+
+    document.getElementById("resetBtn").addEventListener("click", resetCurrent);
+    document.getElementById("blankBtn").addEventListener("click", confirmCreateBlankTable);
+    document.getElementById("addTargetBtnInline").addEventListener("click", addTarget);
+    document.getElementById("addRowsBtn").addEventListener("click", () => addStudents(document.getElementById("studentAddCount").value));
+    document.getElementById("deleteSelectedRowsBtn").addEventListener("click", deleteSelectedStudents);
+    document.getElementById("exportXlsxBtn").addEventListener("click", () => exportXlsx("课程达成度计算结果.xlsx"));
+
+    els.tbody.addEventListener("input", event => {
+      const input = event.target.closest("input");
+      if (!input) return;
+      if (input.dataset.row === undefined) return;
+      const row = Number(input.dataset.row);
+      if (input.dataset.field) students[row][input.dataset.field] = input.value;
+      if (input.dataset.componentId) students[row].scores[input.dataset.componentId] = input.value;
+      render();
+      const selector = input.dataset.field
+        ? `input[data-row="${row}"][data-field="${input.dataset.field}"]`
+        : `input[data-row="${row}"][data-component-id="${input.dataset.componentId}"]`;
+      const next = els.tbody.querySelector(selector);
+      if (next) {
+        next.focus();
+        next.setSelectionRange(input.value.length, input.value.length);
+      }
+    });
+
+    els.tbody.addEventListener("paste", event => {
+      const input = event.target.closest("input[data-row][data-col-index]");
+      if (!input) return;
+      const text = event.clipboardData?.getData("text/plain") || "";
+      if (!text) return;
+      const table = parseClipboardTable(text);
+      const isSingleCell = table.length === 1 && table[0].length === 1;
+      if (isSingleCell) return;
+      event.preventDefault();
+      pasteStudentTable(Number(input.dataset.row), Number(input.dataset.colIndex), table);
+    });
+
+    els.tbody.addEventListener("click", event => {
+      const button = event.target.closest("button[data-delete-row]");
+      if (!button) return;
+      const deletedIndex = Number(button.dataset.deleteRow);
+      students.splice(deletedIndex, 1);
+      selectedRows = new Set([...selectedRows].filter(index => index !== deletedIndex).map(index => index > deletedIndex ? index - 1 : index));
+      render();
+    });
+
+    els.thead.addEventListener("change", event => {
+      const checkbox = event.target.closest("input[data-select-all]");
+      if (!checkbox) return;
+      selectedRows = checkbox.checked ? new Set(students.map((_, index) => index)) : new Set();
+      render();
+    });
+
+    els.tbody.addEventListener("change", event => {
+      const checkbox = event.target.closest("input[data-select-row]");
+      if (!checkbox) return;
+      const rowIndex = Number(checkbox.dataset.selectRow);
+      if (checkbox.checked) selectedRows.add(rowIndex);
+      else selectedRows.delete(rowIndex);
+      render();
+    });
+
+    els.targetGrid.addEventListener("change", event => {
+      const input = event.target.closest("input");
+      if (!input) return;
+      const target = model.targets[Number(input.dataset.target)];
+      if (input.dataset.component) {
+        const component = target.components[Number(input.dataset.component)];
+        component[input.dataset.field] = input.dataset.field === "name" ? input.value : numberOrNull(input.value) ?? 0;
+      } else {
+        target[input.dataset.field] = input.dataset.field === "name" ? input.value : numberOrNull(input.value) ?? 0;
+      }
+      render();
+    });
+
+    els.targetGrid.addEventListener("click", event => {
+      const button = event.target.closest("button[data-action]");
+      if (!button) return;
+      const targetIndex = Number(button.dataset.target);
+      if (button.dataset.action === "addComponent") addComponent(targetIndex);
+      if (button.dataset.action === "deleteComponent") deleteComponent(targetIndex, Number(button.dataset.component));
+      if (button.dataset.action === "deleteTarget") deleteTarget(targetIndex);
+    });
+
+    resetCurrent();
+  </script>
+</body>
+</html>
